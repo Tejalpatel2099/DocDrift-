@@ -1,6 +1,7 @@
 import { Component, OnInit, OnDestroy, inject, signal, computed } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { FormsModule } from '@angular/forms';
+import { marked } from 'marked';
 import { MatButtonModule } from '@angular/material/button';
 import { MatCardModule } from '@angular/material/card';
 import { MatIconModule } from '@angular/material/icon';
@@ -138,6 +139,12 @@ export class AppComponent implements OnInit, OnDestroy {
     this.stopDriftPolling();
   }
   setView(v: 'chat' | 'drift'): void { this.view.set(v); }
+
+  /** Render an assistant answer's markdown to HTML. Angular sanitizes the
+   *  string bound to [innerHTML], so LLM output can't inject scripts. */
+  renderMarkdown(text: string): string {
+    return marked.parse(text, { async: false, breaks: true }) as string;
+  }
 
   loadDrift(repoId: string): void {
     this.api.listDrift(repoId).subscribe({

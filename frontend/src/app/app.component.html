@@ -90,7 +90,11 @@
                     @if (m.pending) {
                       <span class="dd-thinking"><mat-spinner diameter="16"></mat-spinner> retrieving &amp; reasoning…</span>
                     } @else {
-                      <div class="dd-msg-text">{{ m.text }}</div>
+                      @if (m.role === 'assistant') {
+                        <div class="dd-msg-text markdown" [innerHTML]="renderMarkdown(m.text)"></div>
+                      } @else {
+                        <div class="dd-msg-text">{{ m.text }}</div>
+                      }
                       @if (m.citations && m.citations.length) {
                         <div class="dd-citations" data-testid="citations">
                           @for (c of m.citations; track c.index) {
