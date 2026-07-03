@@ -83,7 +83,7 @@ and the Supabase row will turn green once your `.env` + `schema.sql` are set.
 ## Phase status
 
 - [x] **Phase 0 — Scaffolding**: Angular + FastAPI + Supabase wiring, `/api/hello`.
-- [~] **Phase 1 — Ingestion**: pipeline built (GitHub → chunk → embed → pgvector),
+- [x] **Phase 1 — Ingestion**: pipeline (GitHub → chunk → embed → pgvector),
       job-status polling UI done. Needs Supabase creds + GitHub token to run live.
       Endpoints: `POST /api/repos`, `GET /api/repos`, `GET /api/repos/{id}`,
       `GET /api/repos/{id}/status`. Backend files: `chunking.py`, `ingestion.py`, `db.py`.

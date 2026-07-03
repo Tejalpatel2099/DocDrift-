@@ -54,6 +54,11 @@ no webhooks (manual Re-scan) · local dev first, deploy last.
   + a non-empty test repo for the live end-to-end demo.
 
 ## Backlog / next
+- 2026-07-03 — **Phase 1 VERIFIED LIVE**. Supabase connected (service_role) +
+  schema.sql run (no RLS, v1). Indexed `expressjs/cors`: 14 files → 57 chunks
+  embedded into pgvector, job polled to `ready`. Rows confirmed via REST with
+  correct file_path + line ranges. Frontend sidebar shows repo READY, db badge lit.
+  (No GITHUB_TOKEN yet — fine for small repos; needed to avoid 60/hr unauth limit.)
 - **Phase 1 (P0)**: ingestion — Octokit/PyGithub fetch tree+contents → chunk
   (code by function/class, markdown by heading) → embed → store in pgvector.
   Return job_id immediately; `/api/repos/{id}/status` polled every 2s.
