@@ -169,7 +169,7 @@ DocDrift/
 - [x] **Phase 0** — Scaffolding (Angular + FastAPI + Supabase, health endpoint).
 - [x] **Phase 1** — Ingestion (repo → chunks → embeddings → pgvector, progress polling).
 - [x] **Phase 2** — RAG chat with clickable citations + anti-hallucination guardrail.
-- [ ] **Phase 3** — Documentation drift re-scan + dashboard (severity, reason).
+- [x] **Phase 3** — Documentation drift re-scan + dashboard (severity, reason).
 - [ ] **Phase 4** — Polish, deployment, live demo on a real repo.
 
 ---

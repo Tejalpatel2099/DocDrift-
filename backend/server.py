@@ -26,6 +26,7 @@ from ingestion import (  # noqa: E402
     upsert_repo, list_repos, get_repo, get_job_status, run_ingestion, parse_github_url,
 )
 from rag import answer_question  # noqa: E402
+from drift import run_drift_scan, get_drift_status, list_drift  # noqa: E402
 
 app = FastAPI(title="DocDrift API", version="0.2.0")
 api_router = APIRouter(prefix="/api")
@@ -108,6 +109,27 @@ def chat(repo_id: str, body: ChatRequest):
     if not body.question.strip():
         raise HTTPException(400, "Question is empty.")
     return answer_question(repo, body.question.strip())
+
+
+@api_router.post("/repos/{repo_id}/drift/rescan")
+def drift_rescan(repo_id: str, background: BackgroundTasks):
+    repo = get_repo(repo_id)
+    if not repo:
+        raise HTTPException(404, "Repo not found")
+    if repo.get("status") != "ready":
+        raise HTTPException(409, "Repo is still indexing.")
+    background.add_task(run_drift_scan, repo_id)
+    return {"status": "scanning"}
+
+
+@api_router.get("/repos/{repo_id}/drift/status")
+def drift_status(repo_id: str):
+    return get_drift_status(repo_id)
+
+
+@api_router.get("/repos/{repo_id}/drift")
+def drift_flags(repo_id: str):
+    return list_drift(repo_id)
 
 
 app.include_router(api_router)

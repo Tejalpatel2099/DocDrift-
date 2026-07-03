@@ -41,6 +41,22 @@ export interface ChatResponse {
   answer: string;
   citations: Citation[];
 }
+export interface DriftFlag {
+  id: string;
+  doc_chunk_id: string;
+  related_code_path: string | null;
+  verdict: string;
+  reason: string;
+  severity: 'low' | 'medium' | 'high';
+  created_at: string;
+}
+export interface DriftStatus {
+  status: string;          // idle | scanning | done | error
+  checked?: number;
+  total?: number;
+  flagged?: number;
+  error?: string | null;
+}
 
 @Injectable({ providedIn: 'root' })
 export class ApiService {
@@ -63,5 +79,14 @@ export class ApiService {
   }
   chat(repoId: string, question: string): Observable<ChatResponse> {
     return this.http.post<ChatResponse>(`${this.base}/api/repos/${repoId}/chat`, { question });
+  }
+  rescanDrift(repoId: string): Observable<{ status: string }> {
+    return this.http.post<{ status: string }>(`${this.base}/api/repos/${repoId}/drift/rescan`, {});
+  }
+  driftStatus(repoId: string): Observable<DriftStatus> {
+    return this.http.get<DriftStatus>(`${this.base}/api/repos/${repoId}/drift/status`);
+  }
+  listDrift(repoId: string): Observable<DriftFlag[]> {
+    return this.http.get<DriftFlag[]>(`${this.base}/api/repos/${repoId}/drift`);
   }
 }

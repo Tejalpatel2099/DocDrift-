@@ -45,69 +45,128 @@
     <!-- Main -->
     <main class="dd-main">
       @if (activeRepo()) {
-        <!-- ===== CHAT VIEW ===== -->
+        <!-- ===== CHAT / DRIFT VIEW ===== -->
         <div class="dd-chat" data-testid="chat-view">
           <div class="dd-chat-head">
             <div>
               <div class="dd-chat-title">{{ activeRepo()!.name }}</div>
-              <div class="dd-chat-sub">grounded answers with file · line citations</div>
+              <div class="dd-chat-sub">grounded answers · documentation drift</div>
             </div>
-            <button mat-stroked-button (click)="newRepo()" data-testid="back-btn">
-              <mat-icon>arrow_back</mat-icon> Index another
-            </button>
+            <div class="dd-head-actions">
+              <div class="dd-toggle" role="tablist">
+                <button [class.on]="view() === 'chat'" (click)="setView('chat')" data-testid="tab-chat">
+                  <mat-icon>chat</mat-icon> Chat
+                </button>
+                <button [class.on]="view() === 'drift'" (click)="setView('drift')" data-testid="tab-drift">
+                  <mat-icon>rule</mat-icon> Drift
+                  @if (driftFlags().length) { <span class="dd-toggle-badge">{{ driftFlags().length }}</span> }
+                </button>
+              </div>
+              <button mat-stroked-button (click)="newRepo()" data-testid="back-btn">
+                <mat-icon>arrow_back</mat-icon> Index another
+              </button>
+            </div>
           </div>
 
-          <div class="dd-messages" data-testid="messages">
-            @if (messages().length === 0) {
-              <div class="dd-chat-empty" data-testid="chat-empty">
-                <mat-icon>forum</mat-icon>
-                <p>Ask anything about <b>{{ activeRepo()!.name }}</b>.</p>
-                <div class="dd-suggestions">
-                  <button mat-stroked-button (click)="question.set('What does this project do?'); ask()">What does this project do?</button>
-                  <button mat-stroked-button (click)="question.set('How is the code structured?'); ask()">How is the code structured?</button>
+          @if (view() === 'chat') {
+            <div class="dd-messages" data-testid="messages">
+              @if (messages().length === 0) {
+                <div class="dd-chat-empty" data-testid="chat-empty">
+                  <mat-icon>forum</mat-icon>
+                  <p>Ask anything about <b>{{ activeRepo()!.name }}</b>.</p>
+                  <div class="dd-suggestions">
+                    <button mat-stroked-button (click)="question.set('What does this project do?'); ask()">What does this project do?</button>
+                    <button mat-stroked-button (click)="question.set('How is the code structured?'); ask()">How is the code structured?</button>
+                  </div>
                 </div>
-              </div>
-            }
-            @for (m of messages(); track $index) {
-              <div class="dd-msg" [class.user]="m.role === 'user'" [class.assistant]="m.role === 'assistant'"
-                   [attr.data-role]="m.role">
-                <div class="dd-msg-avatar">
-                  <mat-icon>{{ m.role === 'user' ? 'person' : 'auto_awesome' }}</mat-icon>
-                </div>
-                <div class="dd-msg-body">
-                  @if (m.pending) {
-                    <span class="dd-thinking"><mat-spinner diameter="16"></mat-spinner> retrieving &amp; reasoning…</span>
-                  } @else {
-                    <div class="dd-msg-text">{{ m.text }}</div>
-                    @if (m.citations && m.citations.length) {
-                      <div class="dd-citations" data-testid="citations">
-                        @for (c of m.citations; track c.index) {
-                          <a class="dd-cite" [href]="c.url" target="_blank" rel="noopener"
-                             [attr.data-testid]="'cite-' + c.index" [title]="'similarity ' + c.similarity">
-                            <span class="dd-cite-idx">{{ c.index }}</span>
-                            <span class="dd-cite-path">{{ c.file_path }}</span>
-                            <span class="dd-cite-lines">:{{ c.start_line }}-{{ c.end_line }}</span>
-                          </a>
-                        }
-                      </div>
+              }
+              @for (m of messages(); track $index) {
+                <div class="dd-msg" [class.user]="m.role === 'user'" [class.assistant]="m.role === 'assistant'"
+                     [attr.data-role]="m.role">
+                  <div class="dd-msg-avatar">
+                    <mat-icon>{{ m.role === 'user' ? 'person' : 'auto_awesome' }}</mat-icon>
+                  </div>
+                  <div class="dd-msg-body">
+                    @if (m.pending) {
+                      <span class="dd-thinking"><mat-spinner diameter="16"></mat-spinner> retrieving &amp; reasoning…</span>
+                    } @else {
+                      <div class="dd-msg-text">{{ m.text }}</div>
+                      @if (m.citations && m.citations.length) {
+                        <div class="dd-citations" data-testid="citations">
+                          @for (c of m.citations; track c.index) {
+                            <a class="dd-cite" [href]="c.url" target="_blank" rel="noopener"
+                               [attr.data-testid]="'cite-' + c.index" [title]="'similarity ' + c.similarity">
+                              <span class="dd-cite-idx">{{ c.index }}</span>
+                              <span class="dd-cite-path">{{ c.file_path }}</span>
+                              <span class="dd-cite-lines">:{{ c.start_line }}-{{ c.end_line }}</span>
+                            </a>
+                          }
+                        </div>
+                      }
                     }
+                  </div>
+                </div>
+              }
+            </div>
+
+            <div class="dd-ask-bar">
+              <mat-form-field appearance="outline" class="dd-input">
+                <input matInput placeholder="Ask about this codebase…"
+                       [ngModel]="question()" (ngModelChange)="question.set($event)"
+                       (keyup.enter)="ask()" [disabled]="asking()" data-testid="chat-input" />
+              </mat-form-field>
+              <button mat-flat-button color="primary" (click)="ask()"
+                      [disabled]="asking() || !question().trim()" data-testid="send-btn">
+                <mat-icon>send</mat-icon>
+              </button>
+            </div>
+          } @else {
+            <!-- DRIFT DASHBOARD -->
+            <div class="dd-drift" data-testid="drift-view">
+              <div class="dd-drift-bar">
+                <div class="dd-drift-summary">
+                  @if (driftJob()?.status === 'scanning') {
+                    <span class="dd-pill dd-pill-neutral">
+                      <mat-spinner diameter="15"></mat-spinner>
+                      scanning {{ driftJob()?.checked || 0 }}/{{ driftJob()?.total || '?' }} docs…
+                    </span>
+                  } @else if (driftFlags().length) {
+                    <span class="dd-pill dd-pill-warn"><mat-icon>warning</mat-icon>
+                      {{ driftFlags().length }} section(s) drifted</span>
+                  } @else if (driftJob()?.status === 'done') {
+                    <span class="dd-pill dd-pill-ok"><mat-icon>verified</mat-icon> no drift detected</span>
+                  } @else {
+                    <span class="dd-drift-hint">Run a scan to compare docs against current code.</span>
                   }
                 </div>
+                <button mat-flat-button color="primary" (click)="rescan()"
+                        [disabled]="scanning()" data-testid="rescan-btn">
+                  <mat-icon>autorenew</mat-icon> {{ scanning() ? 'Scanning…' : 'Re-scan' }}
+                </button>
               </div>
-            }
-          </div>
 
-          <div class="dd-ask-bar">
-            <mat-form-field appearance="outline" class="dd-input">
-              <input matInput placeholder="Ask about this codebase…"
-                     [ngModel]="question()" (ngModelChange)="question.set($event)"
-                     (keyup.enter)="ask()" [disabled]="asking()" data-testid="chat-input" />
-            </mat-form-field>
-            <button mat-flat-button color="primary" (click)="ask()"
-                    [disabled]="asking() || !question().trim()" data-testid="send-btn">
-              <mat-icon>send</mat-icon>
-            </button>
-          </div>
+              @if (driftFlags().length === 0 && driftJob()?.status !== 'scanning') {
+                <div class="dd-chat-empty" data-testid="drift-empty">
+                  <mat-icon>fact_check</mat-icon>
+                  <p>No drift flags yet. Hit <b>Re-scan</b> to check this repo's docs.</p>
+                </div>
+              }
+
+              <div class="dd-flags">
+                @for (f of driftFlags(); track f.id) {
+                  <div class="dd-flag" [attr.data-severity]="f.severity" data-testid="drift-flag">
+                    <div class="dd-flag-head">
+                      <span class="dd-sev" [attr.data-severity]="f.severity">{{ f.severity }}</span>
+                      <span class="dd-flag-path">
+                        <mat-icon>code</mat-icon> {{ f.related_code_path || 'related code' }}
+                      </span>
+                    </div>
+                    <div class="dd-flag-reason">{{ f.reason }}</div>
+                  </div>
+                }
+              </div>
+            </div>
+          }
         </div>
       } @else {
         <!-- ===== INGEST VIEW ===== -->

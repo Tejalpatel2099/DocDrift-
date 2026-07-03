@@ -54,6 +54,14 @@ no webhooks (manual Re-scan) · local dev first, deploy last.
   + a non-empty test repo for the live end-to-end demo.
 
 ## Backlog / next
+- 2026-07-03 — **Phase 3 COMPLETE & VERIFIED LIVE**. `drift.py`: for each doc
+  chunk → retrieve related code via `match_chunks(filter_type='code')` using the
+  stored embedding → gpt-4o-mini JSON-mode judge {verdict, severity, reason} →
+  store drifted results in `drift_flags`. Endpoints: `POST /drift/rescan` (bg task),
+  `GET /drift/status` (poll), `GET /drift`. Angular: Chat/Drift toggle + drift
+  dashboard (severity-colored flag cards, Re-scan, empty/scanning states). Verified
+  vs expressjs/cors: 17 docs checked, 2 medium flags with reasons rendered.
+  Simplification: evaluates all doc chunks vs current code (no blob-SHA diff yet).
 - 2026-07-03 — **Phase 2 COMPLETE & VERIFIED LIVE**. `rag.py`: embed question →
   `match_chunks()` cosine top-10 → gpt-4o-mini grounded answer (temp 0.1) with a
   strict system prompt (answer only from context, else "I couldn't find that in

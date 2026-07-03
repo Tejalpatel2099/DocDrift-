@@ -8,7 +8,7 @@ import { MatProgressBarModule } from '@angular/material/progress-bar';
 import { MatProgressSpinnerModule } from '@angular/material/progress-spinner';
 import { MatFormFieldModule } from '@angular/material/form-field';
 import { MatInputModule } from '@angular/material/input';
-import { ApiService, HealthResponse, Repo, JobStatus, Citation } from './core/api.service';
+import { ApiService, HealthResponse, Repo, JobStatus, Citation, DriftFlag, DriftStatus } from './core/api.service';
 
 interface ChatMessage {
   role: 'user' | 'assistant';
@@ -40,9 +40,16 @@ export class AppComponent implements OnInit, OnDestroy {
 
   // chat state
   activeRepo = signal<Repo | null>(null);
+  view = signal<'chat' | 'drift'>('chat');
   messages = signal<ChatMessage[]>([]);
   question = signal<string>('');
   asking = signal<boolean>(false);
+
+  // drift state
+  driftFlags = signal<DriftFlag[]>([]);
+  driftJob = signal<DriftStatus | null>(null);
+  scanning = signal<boolean>(false);
+  private driftPollHandle: any = null;
 
   backendReady = computed(() => !!this.health()?.supabaseConfigured);
   percent = computed(() => {
@@ -59,7 +66,7 @@ export class AppComponent implements OnInit, OnDestroy {
     this.api.getHealth().subscribe({ next: (h) => this.health.set(h) });
     this.loadRepos();
   }
-  ngOnDestroy(): void { this.stopPolling(); }
+  ngOnDestroy(): void { this.stopPolling(); this.stopDriftPolling(); }
 
   loadRepos(): void {
     this.api.listRepos().subscribe({
@@ -116,13 +123,58 @@ export class AppComponent implements OnInit, OnDestroy {
   selectRepo(r: Repo): void {
     if (r.status !== 'ready') return;
     this.activeRepo.set(r);
+    this.view.set('chat');
     this.messages.set([]);
     this.question.set('');
     this.errorMsg.set('');
+    this.driftFlags.set([]);
+    this.driftJob.set(null);
+    this.stopDriftPolling();
+    this.loadDrift(r.id);
   }
   newRepo(): void {
     this.activeRepo.set(null);
     this.job.set(null);
+    this.stopDriftPolling();
+  }
+  setView(v: 'chat' | 'drift'): void { this.view.set(v); }
+
+  loadDrift(repoId: string): void {
+    this.api.listDrift(repoId).subscribe({
+      next: (f) => this.driftFlags.set(f),
+      error: () => this.driftFlags.set([]),
+    });
+  }
+  rescan(): void {
+    const repo = this.activeRepo();
+    if (!repo || this.scanning()) return;
+    this.scanning.set(true);
+    this.driftJob.set({ status: 'scanning', checked: 0, total: 0, flagged: 0 });
+    this.api.rescanDrift(repo.id).subscribe({
+      next: () => this.startDriftPolling(repo.id),
+      error: (e) => {
+        this.scanning.set(false);
+        this.driftJob.set({ status: 'error', error: e?.error?.detail || e?.message });
+      },
+    });
+  }
+  private startDriftPolling(repoId: string): void {
+    this.stopDriftPolling();
+    this.driftPollHandle = setInterval(() => {
+      this.api.driftStatus(repoId).subscribe({
+        next: (s) => {
+          this.driftJob.set(s);
+          if (s.status === 'done' || s.status === 'error') {
+            this.stopDriftPolling();
+            this.scanning.set(false);
+            this.loadDrift(repoId);
+          }
+        },
+      });
+    }, 2000);
+  }
+  private stopDriftPolling(): void {
+    if (this.driftPollHandle) { clearInterval(this.driftPollHandle); this.driftPollHandle = null; }
   }
   ask(): void {
     const q = this.question().trim();
