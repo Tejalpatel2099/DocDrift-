@@ -13,6 +13,8 @@ PRODUCTION ALTERNATIVES (interview talking points):
 """
 import os
 import re
+from functools import lru_cache
+
 from openai import OpenAI
 
 from db import get_supabase
@@ -36,6 +38,7 @@ SYSTEM_PROMPT = (
 )
 
 
+@lru_cache(maxsize=1)
 def _client() -> OpenAI:
     key = os.environ.get("OPENAI_API_KEY")
     if not key:

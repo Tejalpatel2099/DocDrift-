@@ -132,8 +132,6 @@ def drift_flags(repo_id: str):
     return list_drift(repo_id)
 
 
-app.include_router(api_router)
-
 app.add_middleware(
     CORSMiddleware,
     allow_credentials=True,
@@ -141,3 +139,5 @@ app.add_middleware(
     allow_methods=["*"],
     allow_headers=["*"],
 )
+
+app.include_router(api_router)

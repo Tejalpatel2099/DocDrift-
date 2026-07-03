@@ -54,6 +54,18 @@ no webhooks (manual Re-scan) · local dev first, deploy last.
   + a non-empty test repo for the live end-to-end demo.
 
 ## Backlog / next
+- 2026-07-03 — **Phase 4 (Polish & Ship)**. Markdown rendering of chat answers
+  (marked + Angular sanitization). Broadened ingestion file types (.razor/.cshtml/
+  .html/.css/.vue/etc.) + file prioritization (docs → source → tests) so partial/
+  rate-limited indexes stay useful. Softened RAG prompt (synthesize from partial
+  context; refuse only when nothing relates). Code-quality: cached OpenAI client
+  (lru_cache) in rag.py/drift.py; CORS middleware before router. Deployment
+  artifacts: backend Dockerfile, frontend Dockerfile + nginx.conf, DEPLOYMENT.md.
+  **QA: testing_agent iteration_1 = 100% (backend 8/8, frontend all flows).**
+  KNOWN LIMITATION: user's Mockup-Interview-coach repo only partially indexed
+  (45/215 files, tests-first) because unauthenticated GitHub limit (60/hr) hit 0
+  mid-index; needs a GITHUB_TOKEN (asked) to fully re-index. expressjs/cors demo
+  fully working (chat + citations + drift).
 - 2026-07-03 — **Phase 3 COMPLETE & VERIFIED LIVE**. `drift.py`: for each doc
   chunk → retrieve related code via `match_chunks(filter_type='code')` using the
   stored embedding → gpt-4o-mini JSON-mode judge {verdict, severity, reason} →
