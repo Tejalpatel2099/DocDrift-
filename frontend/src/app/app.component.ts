@@ -8,7 +8,14 @@ import { MatProgressBarModule } from '@angular/material/progress-bar';
 import { MatProgressSpinnerModule } from '@angular/material/progress-spinner';
 import { MatFormFieldModule } from '@angular/material/form-field';
 import { MatInputModule } from '@angular/material/input';
-import { ApiService, HealthResponse, Repo, JobStatus } from './core/api.service';
+import { ApiService, HealthResponse, Repo, JobStatus, Citation } from './core/api.service';
+
+interface ChatMessage {
+  role: 'user' | 'assistant';
+  text: string;
+  citations?: Citation[];
+  pending?: boolean;
+}
 
 @Component({
   selector: 'app-root',
@@ -30,6 +37,12 @@ export class AppComponent implements OnInit, OnDestroy {
   submitting = signal<boolean>(false);
   errorMsg = signal<string>('');
   job = signal<JobStatus | null>(null);
+
+  // chat state
+  activeRepo = signal<Repo | null>(null);
+  messages = signal<ChatMessage[]>([]);
+  question = signal<string>('');
+  asking = signal<boolean>(false);
 
   backendReady = computed(() => !!this.health()?.supabaseConfigured);
   percent = computed(() => {
@@ -55,6 +68,7 @@ export class AppComponent implements OnInit, OnDestroy {
     });
   }
 
+  // ---- ingestion ----
   index(): void {
     const url = this.repoUrl().trim();
     if (!url) return;
@@ -64,6 +78,7 @@ export class AppComponent implements OnInit, OnDestroy {
     this.api.createRepo(url).subscribe({
       next: (res) => {
         this.submitting.set(false);
+        this.repoUrl.set('');
         this.startPolling(res.repo_id);
         this.loadRepos();
       },
@@ -95,5 +110,48 @@ export class AppComponent implements OnInit, OnDestroy {
   }
   private stopPolling(): void {
     if (this.pollHandle) { clearInterval(this.pollHandle); this.pollHandle = null; }
+  }
+
+  // ---- chat ----
+  selectRepo(r: Repo): void {
+    if (r.status !== 'ready') return;
+    this.activeRepo.set(r);
+    this.messages.set([]);
+    this.question.set('');
+    this.errorMsg.set('');
+  }
+  newRepo(): void {
+    this.activeRepo.set(null);
+    this.job.set(null);
+  }
+  ask(): void {
+    const q = this.question().trim();
+    const repo = this.activeRepo();
+    if (!q || !repo || this.asking()) return;
+    this.messages.update((m) => [...m, { role: 'user', text: q },
+                                        { role: 'assistant', text: '', pending: true }]);
+    this.question.set('');
+    this.asking.set(true);
+    this.api.chat(repo.id, q).subscribe({
+      next: (res) => {
+        this.asking.set(false);
+        this.messages.update((m) => {
+          const copy = [...m];
+          copy[copy.length - 1] = { role: 'assistant', text: res.answer, citations: res.citations };
+          return copy;
+        });
+      },
+      error: (e) => {
+        this.asking.set(false);
+        this.messages.update((m) => {
+          const copy = [...m];
+          copy[copy.length - 1] = {
+            role: 'assistant',
+            text: e?.error?.detail || e?.message || 'Something went wrong.',
+          };
+          return copy;
+        });
+      },
+    });
   }
 }

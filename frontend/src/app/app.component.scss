@@ -33,10 +33,13 @@
   padding: 14px; height: fit-content; position: sticky; top: 20px;
 }
 .dd-side-head {
+  display: flex; align-items: center; justify-content: space-between;
   font-family: var(--dd-display); font-weight: 700; font-size: 12.5px;
   text-transform: uppercase; letter-spacing: .08em; color: var(--dd-muted);
   padding: 4px 6px 12px;
 }
+.dd-side-add { color: var(--dd-muted); width: 28px; height: 28px; line-height: 28px; }
+.dd-side-add mat-icon { font-size: 18px; width: 18px; height: 18px; }
 .dd-empty {
   display: flex; flex-direction: column; align-items: center; gap: 8px;
   color: var(--dd-muted); text-align: center; font-size: 13px; padding: 22px 8px;
@@ -44,10 +47,12 @@
 .dd-empty mat-icon { opacity: .6; }
 .dd-repo-item {
   display: flex; flex-direction: column; gap: 4px; padding: 10px 12px;
-  border-radius: 10px; border: 1px solid transparent; cursor: default;
+  border-radius: 10px; border: 1px solid transparent;
   transition: background-color .15s ease, border-color .15s ease;
 }
-.dd-repo-item:hover { background: var(--dd-bg-2); border-color: var(--dd-border); }
+.dd-repo-item.clickable { cursor: pointer; }
+.dd-repo-item.clickable:hover { background: var(--dd-bg-2); border-color: var(--dd-border); }
+.dd-repo-item.active { background: var(--dd-mint-dim); border-color: rgba(61,224,160,.4); }
 .dd-repo-name { font-size: 13.5px; font-weight: 600; word-break: break-word; }
 .dd-repo-status {
   font-family: var(--dd-mono); font-size: 10.5px; text-transform: uppercase; letter-spacing: .05em;
@@ -95,6 +100,65 @@
 .dd-pill-neutral { color: var(--dd-muted); }
 .dd-pill-ok { color: var(--dd-mint); background: var(--dd-mint-dim); border-color: rgba(61,224,160,.3); }
 .dd-pill-err { color: var(--dd-red); background: rgba(255,107,107,.12); border-color: rgba(255,107,107,.3); }
+
+/* ---------- chat view ---------- */
+.dd-chat { display: flex; flex-direction: column; min-height: 70vh; }
+.dd-chat-head {
+  display: flex; align-items: center; justify-content: space-between;
+  padding: 4px 4px 16px; border-bottom: 1px solid var(--dd-border); margin-bottom: 16px;
+}
+.dd-chat-title { font-family: var(--dd-display); font-weight: 800; font-size: 20px; letter-spacing: -.02em; }
+.dd-chat-sub { color: var(--dd-muted); font-size: 12.5px; font-family: var(--dd-mono); margin-top: 2px; }
+
+.dd-messages { flex: 1; display: flex; flex-direction: column; gap: 18px; padding: 4px; }
+
+.dd-chat-empty { text-align: center; color: var(--dd-muted); padding: 40px 12px; }
+.dd-chat-empty mat-icon { font-size: 34px; width: 34px; height: 34px; opacity: .5; }
+.dd-chat-empty p { margin: 10px 0 16px; }
+.dd-suggestions { display: flex; gap: 10px; justify-content: center; flex-wrap: wrap; }
+.dd-suggestions button { font-size: 12.5px; }
+
+.dd-msg { display: flex; gap: 12px; align-items: flex-start; }
+.dd-msg.user { flex-direction: row-reverse; }
+.dd-msg-avatar {
+  width: 34px; height: 34px; flex: none; border-radius: 10px; display: grid; place-items: center;
+  background: var(--dd-panel-2); border: 1px solid var(--dd-border); color: var(--dd-muted);
+}
+.dd-msg.assistant .dd-msg-avatar { color: var(--dd-mint); border-color: rgba(61,224,160,.35); background: var(--dd-mint-dim); }
+.dd-msg-body { max-width: 78%; }
+.dd-msg.user .dd-msg-body {
+  background: var(--dd-panel-2); border: 1px solid var(--dd-border);
+  padding: 10px 14px; border-radius: 12px;
+}
+.dd-msg-text { white-space: pre-wrap; line-height: 1.6; font-size: 14.5px; word-break: break-word; }
+.dd-msg.assistant .dd-msg-text {
+  background: var(--dd-panel); border: 1px solid var(--dd-border);
+  padding: 14px 16px; border-radius: 12px;
+}
+.dd-thinking { display: inline-flex; align-items: center; gap: 8px; color: var(--dd-muted);
+  font-family: var(--dd-mono); font-size: 13px; }
+
+.dd-citations { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 10px; }
+.dd-cite {
+  display: inline-flex; align-items: center; gap: 6px; text-decoration: none;
+  padding: 4px 10px 4px 4px; border-radius: 999px; font-family: var(--dd-mono); font-size: 11.5px;
+  background: var(--dd-bg-2); border: 1px solid var(--dd-border); color: var(--dd-text);
+  transition: border-color .15s ease, transform .15s ease;
+}
+.dd-cite:hover { border-color: var(--dd-mint); transform: translateY(-1px); }
+.dd-cite-idx {
+  width: 18px; height: 18px; border-radius: 999px; display: grid; place-items: center;
+  background: var(--dd-mint-dim); color: var(--dd-mint); font-weight: 600;
+}
+.dd-cite-path { color: var(--dd-text); }
+.dd-cite-lines { color: var(--dd-muted); }
+
+.dd-ask-bar {
+  display: flex; gap: 12px; align-items: flex-start; margin-top: 16px;
+  position: sticky; bottom: 0; padding-top: 8px; background: linear-gradient(transparent, var(--dd-bg) 40%);
+}
+.dd-ask-bar .dd-input { flex: 1; }
+.dd-ask-bar button { margin-top: 6px; height: 48px; min-width: 56px; }
 
 @media (max-width: 820px) {
   .dd-layout { grid-template-columns: 1fr; }

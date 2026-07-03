@@ -1,92 +1,188 @@
-# DocDrift
+<div align="center">
 
-Chat with any public GitHub codebase (RAG with file/line citations) and detect
-when documentation has **drifted** out of sync with the code.
+# 📚 DocDrift
 
-**Stack:** Angular 17 (standalone) + Angular Material · FastAPI (Python) ·
-Supabase (PostgreSQL + pgvector) · OpenAI (`text-embedding-3-small`, `gpt-4o-mini`).
+### Chat with any public GitHub codebase — and catch your docs *drifting* out of sync with your code.
 
----
+**Angular 17 · FastAPI · Supabase (PostgreSQL + pgvector) · OpenAI**
 
-## Repository layout
-
-```
-/app
-├── backend/          # FastAPI API (runs on :8001)
-│   ├── server.py     # Phase 0: /api/hello, /api/health
-│   └── .env          # SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY, OPENAI_API_KEY, GITHUB_TOKEN
-├── frontend/         # Angular 17 app (dev on :4200, hosted build on :3000)
-│   └── src/app/...
-└── supabase/
-    └── schema.sql    # repos, chunks (vector 1536), drift_flags, match_chunks()
-```
+</div>
 
 ---
 
-## Prerequisites (fresh machine)
+## 🎯 What is DocDrift?
 
+Documentation rots. Code changes, docs don't, and six months later your README lies to
+every new engineer who reads it. **DocDrift** attacks that problem with two capabilities:
+
+1. **Chat with a codebase (RAG).** Paste a public GitHub URL. DocDrift ingests the repo,
+   embeds it, and lets you ask natural-language questions. Every answer is **grounded** in
+   the actual source and comes with **clickable citations** (exact `file · line-range`) — so
+   you can trust it and jump straight to the code.
+2. **Documentation drift detection.** On demand, DocDrift compares the repo's docs against
+   its current code and **flags the sections that no longer match**, each with an
+   AI-generated reason and a severity — a living "is my documentation still true?" report.
+
+## 💡 Why it's useful (the benefits)
+
+- **Onboard faster** — new hires ask the codebase questions instead of pinging seniors.
+- **Trustworthy answers** — citations + a "not in the context" guardrail mean it says
+  *"I don't know"* instead of hallucinating.
+- **Docs you can rely on** — drift detection turns "are these docs still accurate?" from a
+  vibe into a concrete, reviewable list.
+- **Zero setup for the reader** — no accounts, no OAuth; just paste a public repo URL.
+
+---
+
+## 🏗️ Architecture
+
+```
+                    ┌─────────────────────────────┐
+                    │   Angular 17 (standalone)    │
+                    │   + Angular Material (dark)  │
+                    │  repo sidebar · chat · drift │
+                    └───────────────┬─────────────┘
+                                    │  HTTPS  (/api/*)
+                    ┌───────────────▼─────────────┐
+                    │      FastAPI  (Python)       │
+                    │  ingestion · RAG · drift     │
+                    └───┬───────────┬───────────┬──┘
+                        │           │           │
+              ┌─────────▼──┐  ┌─────▼─────┐ ┌───▼─────────────┐
+              │  GitHub    │  │  OpenAI   │ │   Supabase      │
+              │  REST API  │  │ embeddings│ │  Postgres +     │
+              │ (Octokit-  │  │  + chat   │ │  pgvector       │
+              │  style)    │  │ 4o-mini   │ │  repos/chunks/  │
+              └────────────┘  └───────────┘ │  drift_flags    │
+                                            └─────────────────┘
+```
+
+**Ingestion flow:** `GitHub tree + blobs` → **chunk** (code by symbol, docs by heading) →
+**embed** (`text-embedding-3-small`) → **store** vectors in `pgvector` with `file_path` +
+line ranges. Runs in a background task; the UI polls a status endpoint every 2s.
+
+**Chat (RAG) flow:** embed the question → **cosine top-k** via the `match_chunks()` SQL
+function → feed retrieved chunks + question to `gpt-4o-mini` → return a grounded answer +
+citations.
+
+---
+
+## 🧰 Tech stack
+
+| Layer | Technology | Why |
+|---|---|---|
+| Frontend | **Angular 17** (standalone components) + **Angular Material** | Typed, structured SPA; Material for fast, accessible dark UI |
+| Backend | **FastAPI** (Python) | Async, typed, great for AI workloads |
+| Database | **Supabase** — PostgreSQL + **pgvector** | Managed Postgres with first-class vector search |
+| Embeddings | **OpenAI `text-embedding-3-small`** (1536-dim) | Cheap, strong retrieval quality |
+| Generation | **OpenAI `gpt-4o-mini`** | Fast, cheap, good enough for grounded Q&A + drift reasoning |
+| Source access | **GitHub REST API** + server-side token | Public repos only, token kept server-side |
+
+---
+
+## 🗄️ Data model
+
+| Table | Purpose |
+|---|---|
+| `repos` | one row per indexed repo (`github_url`, `name`, `default_branch`, `status`, `last_indexed_at`) |
+| `chunks` | embedded pieces — `file_path`, `start_line`, `end_line`, `chunk_type` (`code`/`doc`), `content`, `embedding vector(1536)` |
+| `drift_flags` | drift results — `doc_chunk_id`, `related_code_path`, `verdict`, `reason`, `severity` |
+
+Plus a SQL function `match_chunks(query_embedding, repo_id, k, type)` for cosine top-k retrieval.
+
+---
+
+## 🚀 Getting started (local)
+
+### Prerequisites
 ```bash
-# Node 20 + Yarn
-node -v            # should be >= 18
+node -v            # >= 18
 npm i -g yarn @angular/cli@17
-
-# Python 3.11+
-python3 --version
+python3 --version  # >= 3.11
 ```
 
-## 1) Supabase (one-time)
-
+### 1) Supabase (one-time)
 1. Create a free project at https://supabase.com.
-2. **Project Settings → API**: copy the **Project URL** and the **service_role** key.
-3. **SQL Editor → New query**: paste the contents of `supabase/schema.sql` and **Run**.
-   This enables `pgvector` and creates `repos`, `chunks`, `drift_flags`, and the
-   `match_chunks()` retrieval function.
+2. **Project Settings → API**: copy the **Project URL** and the **`service_role`** key.
+3. **SQL Editor → New query**: paste all of `supabase/schema.sql` and **Run** (choose
+   *Run without RLS* for v1). This enables `pgvector` and creates the tables + `match_chunks()`.
 
-## 2) Backend (FastAPI)
-
+### 2) Backend (FastAPI)
 ```bash
 cd backend
 pip install -r requirements.txt
-
-# edit backend/.env and fill in:
+# fill backend/.env:
 #   SUPABASE_URL=...
 #   SUPABASE_SERVICE_ROLE_KEY=...
-#   OPENAI_API_KEY=...        # needed from Phase 1
-#   GITHUB_TOKEN=...          # needed from Phase 1
-
+#   OPENAI_API_KEY=...
+#   GITHUB_TOKEN=...        # optional but recommended (raises GitHub rate limit)
 uvicorn server:app --host 0.0.0.0 --port 8001 --reload
 ```
+Verify: `curl http://localhost:8001/api/health`
 
-Verify:
-```bash
-curl http://localhost:8001/api/hello
-curl http://localhost:8001/api/health   # shows live Supabase connectivity
-```
-
-## 3) Frontend (Angular)
-
+### 3) Frontend (Angular)
 ```bash
 cd frontend
 yarn install
-yarn dev            # ng serve on http://localhost:4200
+yarn dev            # http://localhost:4200  (talks to the API on :8001)
 ```
 
-The dev build talks to `http://localhost:8001` (see `src/environments/`).
-Open http://localhost:4200 — the **System check** card should show *connected*
-and the Supabase row will turn green once your `.env` + `schema.sql` are set.
-
-> `yarn start` produces a **production** build served on `:3000` (used by the
-> hosted preview). It calls the API on the same origin (`/api/...`).
+> `yarn start` builds for production and serves on `:3000` (same-origin `/api`) — used by
+> hosted deployments.
 
 ---
 
-## Phase status
+## 🖱️ How to use
 
-- [x] **Phase 0 — Scaffolding**: Angular + FastAPI + Supabase wiring, `/api/hello`.
-- [x] **Phase 1 — Ingestion**: pipeline (GitHub → chunk → embed → pgvector),
-      job-status polling UI done. Needs Supabase creds + GitHub token to run live.
-      Endpoints: `POST /api/repos`, `GET /api/repos`, `GET /api/repos/{id}`,
-      `GET /api/repos/{id}/status`. Backend files: `chunking.py`, `ingestion.py`, `db.py`.
-- [ ] Phase 2 — RAG chat with citations.
-- [ ] Phase 3 — Drift re-scan + dashboard.
-- [ ] Phase 4 — Polish, README architecture diagram, deployment.
+1. Open the app and **paste a public GitHub URL** (e.g. `https://github.com/expressjs/cors`).
+2. Click **Index repo** — watch the progress bar as files are fetched, chunked, and embedded.
+3. When it turns **READY**, open it and **ask questions** — answers come back with
+   clickable `file:line` citation chips *(Phase 2)*.
+4. Hit **Re-scan** to check for **documentation drift** and review flagged sections
+   with reasons + severity *(Phase 3)*.
+
+---
+
+## 📁 Project structure
+
+```
+DocDrift/
+├── backend/                 # FastAPI API (port 8001)
+│   ├── server.py            # routes: /api/hello, /api/health, /api/repos*
+│   ├── db.py                # Supabase client (service_role, server-side only)
+│   ├── chunking.py          # code-by-symbol / markdown-by-heading / window fallback
+│   ├── ingestion.py         # GitHub fetch → chunk → embed → pgvector + job progress
+│   └── requirements.txt
+├── frontend/                # Angular 17 app (dev :4200 / prod :3000)
+│   └── src/app/
+│       ├── app.component.*   # shell: repo sidebar + ingest UI
+│       └── core/api.service.ts
+├── supabase/
+│   └── schema.sql           # pgvector + tables + match_chunks()
+└── README.md
+```
+
+---
+
+## 🗺️ Roadmap
+
+- [x] **Phase 0** — Scaffolding (Angular + FastAPI + Supabase, health endpoint).
+- [x] **Phase 1** — Ingestion (repo → chunks → embeddings → pgvector, progress polling).
+- [x] **Phase 2** — RAG chat with clickable citations + anti-hallucination guardrail.
+- [ ] **Phase 3** — Documentation drift re-scan + dashboard (severity, reason).
+- [ ] **Phase 4** — Polish, deployment, live demo on a real repo.
+
+---
+
+## ⚠️ v1 simplifications (intentional)
+
+No auth/OAuth · no Redis/queue (background task + status polling) · no webhooks (manual
+re-scan) · public repos only. Each is a deliberate scope decision with a documented
+production-grade alternative (queues/workers, tree-sitter chunking, RLS, incremental
+indexing by blob SHA).
+
+---
+
+<div align="center">
+Built as a portfolio project to demonstrate full-stack + applied-AI engineering.
+</div>

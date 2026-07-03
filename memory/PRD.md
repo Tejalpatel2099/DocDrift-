@@ -54,6 +54,16 @@ no webhooks (manual Re-scan) · local dev first, deploy last.
   + a non-empty test repo for the live end-to-end demo.
 
 ## Backlog / next
+- 2026-07-03 — **Phase 2 COMPLETE & VERIFIED LIVE**. `rag.py`: embed question →
+  `match_chunks()` cosine top-10 → gpt-4o-mini grounded answer (temp 0.1) with a
+  strict system prompt (answer only from context, else "I couldn't find that in
+  the indexed code") + citations carrying GitHub blob deep-links (file#Lx-Ly).
+  Endpoint `POST /api/repos/{id}/chat` (404 if missing, 409 if not ready). Angular:
+  clickable repo sidebar → chat view with user/assistant bubbles, thinking state,
+  suggestion chips, and clickable citation chips. Verified in-browser against
+  expressjs/cors: accurate answer + 10 citations. Anti-hallucination guardrail
+  confirmed (unrelated repo → "couldn't find"). Known polish: answer rendered as
+  pre-wrap text (code fences literal) — could add ngx-markdown; no re-ranking/streaming yet.
 - 2026-07-03 — **Phase 1 VERIFIED LIVE**. Supabase connected (service_role) +
   schema.sql run (no RLS, v1). Indexed `expressjs/cors`: 14 files → 57 chunks
   embedded into pgvector, job polled to `ready`. Rows confirmed via REST with

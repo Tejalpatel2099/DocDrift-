@@ -25,6 +25,7 @@ from db import supabase_configured, check_db_connection  # noqa: E402
 from ingestion import (  # noqa: E402
     upsert_repo, list_repos, get_repo, get_job_status, run_ingestion, parse_github_url,
 )
+from rag import answer_question  # noqa: E402
 
 app = FastAPI(title="DocDrift API", version="0.2.0")
 api_router = APIRouter(prefix="/api")
@@ -32,6 +33,10 @@ api_router = APIRouter(prefix="/api")
 
 class RepoCreate(BaseModel):
     github_url: str
+
+
+class ChatRequest(BaseModel):
+    question: str
 
 
 @api_router.get("/hello")
@@ -90,6 +95,19 @@ def get_one_repo(repo_id: str):
 @api_router.get("/repos/{repo_id}/status")
 def repo_status(repo_id: str):
     return get_job_status(repo_id)
+
+
+@api_router.post("/repos/{repo_id}/chat")
+def chat(repo_id: str, body: ChatRequest):
+    """RAG answer for a question, grounded in this repo's indexed chunks."""
+    repo = get_repo(repo_id)
+    if not repo:
+        raise HTTPException(404, "Repo not found")
+    if repo.get("status") != "ready":
+        raise HTTPException(409, "Repo is still indexing. Try again once it's ready.")
+    if not body.question.strip():
+        raise HTTPException(400, "Question is empty.")
+    return answer_question(repo, body.question.strip())
 
 
 app.include_router(api_router)

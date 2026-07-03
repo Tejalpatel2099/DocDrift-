@@ -17,9 +17,13 @@
   </header>
 
   <div class="dd-layout">
-    <!-- Sidebar: indexed repos -->
+    <!-- Sidebar -->
     <aside class="dd-sidebar" data-testid="repo-sidebar">
-      <div class="dd-side-head">Indexed repos</div>
+      <div class="dd-side-head">
+        <span>Indexed repos</span>
+        <button mat-icon-button class="dd-side-add" (click)="newRepo()" title="Index another repo"
+                data-testid="new-repo-btn"><mat-icon>add</mat-icon></button>
+      </div>
       @if (repos().length === 0) {
         <div class="dd-empty" data-testid="repos-empty">
           <mat-icon>folder_open</mat-icon>
@@ -27,7 +31,10 @@
         </div>
       } @else {
         @for (r of repos(); track r.id) {
-          <div class="dd-repo-item" data-testid="repo-item">
+          <div class="dd-repo-item" data-testid="repo-item"
+               [class.active]="activeRepo()?.id === r.id"
+               [class.clickable]="r.status === 'ready'"
+               (click)="selectRepo(r)">
             <div class="dd-repo-name">{{ r.name }}</div>
             <span class="dd-repo-status" [attr.data-status]="r.status">{{ r.status }}</span>
           </div>
@@ -35,74 +42,136 @@
       }
     </aside>
 
-    <!-- Main: ingest -->
+    <!-- Main -->
     <main class="dd-main">
-      <section class="dd-hero">
-        <h1 class="dd-h1">Index a <span class="dd-accent">codebase.</span></h1>
-        <p class="dd-sub">
-          Paste a public GitHub URL. DocDrift fetches the tree, chunks code by
-          symbol and docs by heading, embeds every chunk, and stores vectors in
-          pgvector — then you can chat with it (Phase 2).
-        </p>
-      </section>
-
-      <mat-card class="dd-card" data-testid="ingest-card">
-        <div class="dd-ingest-row">
-          <mat-form-field appearance="outline" class="dd-input">
-            <mat-label>GitHub repository URL</mat-label>
-            <input matInput placeholder="https://github.com/owner/repo"
-                   [ngModel]="repoUrl()" (ngModelChange)="repoUrl.set($event)"
-                   data-testid="repo-url-input" />
-          </mat-form-field>
-          <button mat-flat-button color="primary" (click)="index()"
-                  [disabled]="submitting() || !repoUrl().trim()" data-testid="index-btn">
-            <mat-icon>bolt</mat-icon> Index repo
-          </button>
-        </div>
-
-        @if (!backendReady() && health()) {
-          <p class="dd-hint" data-testid="backend-hint">
-            <mat-icon>info</mat-icon>
-            Add Supabase credentials to <code>backend/.env</code> to enable indexing.
-          </p>
-        }
-
-        @if (errorMsg()) {
-          <p class="dd-error-text" data-testid="error-text">{{ errorMsg() }}</p>
-        }
-
-        @if (job()) {
-          <div class="dd-progress" data-testid="progress">
-            <div class="dd-progress-head">
-              @if (job()!.status === 'ready') {
-                <span class="dd-pill dd-pill-ok"><mat-icon>check_circle</mat-icon> done</span>
-              } @else if (job()!.status === 'error') {
-                <span class="dd-pill dd-pill-err"><mat-icon>error</mat-icon> error</span>
-              } @else {
-                <span class="dd-pill dd-pill-neutral">
-                  <mat-spinner diameter="15"></mat-spinner> {{ job()!.phase || 'working' }}…
-                </span>
-              }
-              <span class="dd-progress-meta" data-testid="progress-meta">
-                @if (job()!.status === 'ready') {
-                  {{ job()!.chunks }} chunks embedded
-                } @else {
-                  {{ job()!.processed_files || 0 }}/{{ job()!.total_files || '?' }} files
-                }
-              </span>
+      @if (activeRepo()) {
+        <!-- ===== CHAT VIEW ===== -->
+        <div class="dd-chat" data-testid="chat-view">
+          <div class="dd-chat-head">
+            <div>
+              <div class="dd-chat-title">{{ activeRepo()!.name }}</div>
+              <div class="dd-chat-sub">grounded answers with file · line citations</div>
             </div>
-            <mat-progress-bar mode="determinate" [value]="percent()"></mat-progress-bar>
-            @if (job()!.status === 'error' && job()!.error) {
-              <p class="dd-error-text">{{ job()!.error }}</p>
+            <button mat-stroked-button (click)="newRepo()" data-testid="back-btn">
+              <mat-icon>arrow_back</mat-icon> Index another
+            </button>
+          </div>
+
+          <div class="dd-messages" data-testid="messages">
+            @if (messages().length === 0) {
+              <div class="dd-chat-empty" data-testid="chat-empty">
+                <mat-icon>forum</mat-icon>
+                <p>Ask anything about <b>{{ activeRepo()!.name }}</b>.</p>
+                <div class="dd-suggestions">
+                  <button mat-stroked-button (click)="question.set('What does this project do?'); ask()">What does this project do?</button>
+                  <button mat-stroked-button (click)="question.set('How is the code structured?'); ask()">How is the code structured?</button>
+                </div>
+              </div>
+            }
+            @for (m of messages(); track $index) {
+              <div class="dd-msg" [class.user]="m.role === 'user'" [class.assistant]="m.role === 'assistant'"
+                   [attr.data-role]="m.role">
+                <div class="dd-msg-avatar">
+                  <mat-icon>{{ m.role === 'user' ? 'person' : 'auto_awesome' }}</mat-icon>
+                </div>
+                <div class="dd-msg-body">
+                  @if (m.pending) {
+                    <span class="dd-thinking"><mat-spinner diameter="16"></mat-spinner> retrieving &amp; reasoning…</span>
+                  } @else {
+                    <div class="dd-msg-text">{{ m.text }}</div>
+                    @if (m.citations && m.citations.length) {
+                      <div class="dd-citations" data-testid="citations">
+                        @for (c of m.citations; track c.index) {
+                          <a class="dd-cite" [href]="c.url" target="_blank" rel="noopener"
+                             [attr.data-testid]="'cite-' + c.index" [title]="'similarity ' + c.similarity">
+                            <span class="dd-cite-idx">{{ c.index }}</span>
+                            <span class="dd-cite-path">{{ c.file_path }}</span>
+                            <span class="dd-cite-lines">:{{ c.start_line }}-{{ c.end_line }}</span>
+                          </a>
+                        }
+                      </div>
+                    }
+                  }
+                </div>
+              </div>
             }
           </div>
-        }
-      </mat-card>
 
-      <div class="dd-next-hint" data-testid="next-hint">
-        <mat-icon>chat</mat-icon>
-        <span>Next up (Phase 2): ask questions and get answers with clickable file:line citations.</span>
-      </div>
+          <div class="dd-ask-bar">
+            <mat-form-field appearance="outline" class="dd-input">
+              <input matInput placeholder="Ask about this codebase…"
+                     [ngModel]="question()" (ngModelChange)="question.set($event)"
+                     (keyup.enter)="ask()" [disabled]="asking()" data-testid="chat-input" />
+            </mat-form-field>
+            <button mat-flat-button color="primary" (click)="ask()"
+                    [disabled]="asking() || !question().trim()" data-testid="send-btn">
+              <mat-icon>send</mat-icon>
+            </button>
+          </div>
+        </div>
+      } @else {
+        <!-- ===== INGEST VIEW ===== -->
+        <section class="dd-hero">
+          <h1 class="dd-h1">Index a <span class="dd-accent">codebase.</span></h1>
+          <p class="dd-sub">
+            Paste a public GitHub URL. DocDrift fetches the tree, chunks code by
+            symbol and docs by heading, embeds every chunk, and stores vectors in
+            pgvector — then click a <b>ready</b> repo to chat with it.
+          </p>
+        </section>
+
+        <mat-card class="dd-card" data-testid="ingest-card">
+          <div class="dd-ingest-row">
+            <mat-form-field appearance="outline" class="dd-input">
+              <mat-label>GitHub repository URL</mat-label>
+              <input matInput placeholder="https://github.com/owner/repo"
+                     [ngModel]="repoUrl()" (ngModelChange)="repoUrl.set($event)"
+                     data-testid="repo-url-input" />
+            </mat-form-field>
+            <button mat-flat-button color="primary" (click)="index()"
+                    [disabled]="submitting() || !repoUrl().trim()" data-testid="index-btn">
+              <mat-icon>bolt</mat-icon> Index repo
+            </button>
+          </div>
+
+          @if (!backendReady() && health()) {
+            <p class="dd-hint" data-testid="backend-hint">
+              <mat-icon>info</mat-icon>
+              Add Supabase credentials to <code>backend/.env</code> to enable indexing.
+            </p>
+          }
+          @if (errorMsg()) {
+            <p class="dd-error-text" data-testid="error-text">{{ errorMsg() }}</p>
+          }
+
+          @if (job()) {
+            <div class="dd-progress" data-testid="progress">
+              <div class="dd-progress-head">
+                @if (job()!.status === 'ready') {
+                  <span class="dd-pill dd-pill-ok"><mat-icon>check_circle</mat-icon> done</span>
+                } @else if (job()!.status === 'error') {
+                  <span class="dd-pill dd-pill-err"><mat-icon>error</mat-icon> error</span>
+                } @else {
+                  <span class="dd-pill dd-pill-neutral">
+                    <mat-spinner diameter="15"></mat-spinner> {{ job()!.phase || 'working' }}…
+                  </span>
+                }
+                <span class="dd-progress-meta" data-testid="progress-meta">
+                  @if (job()!.status === 'ready') {
+                    {{ job()!.chunks }} chunks embedded
+                  } @else {
+                    {{ job()!.processed_files || 0 }}/{{ job()!.total_files || '?' }} files
+                  }
+                </span>
+              </div>
+              <mat-progress-bar mode="determinate" [value]="percent()"></mat-progress-bar>
+              @if (job()!.status === 'error' && job()!.error) {
+                <p class="dd-error-text">{{ job()!.error }}</p>
+              }
+            </div>
+          }
+        </mat-card>
+      }
     </main>
   </div>
 </div>

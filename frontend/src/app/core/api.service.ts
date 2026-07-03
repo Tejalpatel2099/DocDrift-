@@ -28,6 +28,19 @@ export interface JobStatus {
   chunks?: number;
   error?: string | null;
 }
+export interface Citation {
+  index: number;
+  file_path: string;
+  start_line: number;
+  end_line: number;
+  chunk_type: string;
+  similarity: number;
+  url: string;
+}
+export interface ChatResponse {
+  answer: string;
+  citations: Citation[];
+}
 
 @Injectable({ providedIn: 'root' })
 export class ApiService {
@@ -47,5 +60,8 @@ export class ApiService {
   }
   repoStatus(repoId: string): Observable<JobStatus> {
     return this.http.get<JobStatus>(`${this.base}/api/repos/${repoId}/status`);
+  }
+  chat(repoId: string, question: string): Observable<ChatResponse> {
+    return this.http.post<ChatResponse>(`${this.base}/api/repos/${repoId}/chat`, { question });
   }
 }
