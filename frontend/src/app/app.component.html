@@ -1,0 +1,124 @@
+<div class="dd-shell" data-testid="app-shell">
+  <!-- Top bar -->
+  <header class="dd-topbar" data-testid="topbar">
+    <div class="dd-brand">
+      <span class="dd-logo" aria-hidden="true">
+        <mat-icon>hub</mat-icon>
+      </span>
+      <div class="dd-brand-text">
+        <span class="dd-brand-name">DocDrift</span>
+        <span class="dd-brand-tag">chat your codebase · catch stale docs</span>
+      </div>
+    </div>
+    <mat-chip-set aria-label="phase">
+      <mat-chip class="dd-phase-chip" data-testid="phase-chip">Phase 0 · Scaffolding</mat-chip>
+    </mat-chip-set>
+  </header>
+
+  <main class="dd-main">
+    <!-- Hero -->
+    <section class="dd-hero" data-testid="hero">
+      <h1 class="dd-h1">
+        Documentation that <span class="dd-accent">tells on itself.</span>
+      </h1>
+      <p class="dd-sub">
+        Paste a public GitHub repo, ask questions with cited answers, and get
+        flagged the moment your docs drift out of sync with the code.
+      </p>
+    </section>
+
+    <!-- Connection status card -->
+    <mat-card class="dd-card" data-testid="status-card">
+      <div class="dd-card-head">
+        <h2 class="dd-card-title">System check</h2>
+
+        @if (state() === 'loading') {
+          <span class="dd-pill dd-pill-neutral" data-testid="status-loading">
+            <mat-spinner diameter="16"></mat-spinner> checking…
+          </span>
+        } @else if (state() === 'ok') {
+          <span class="dd-pill dd-pill-ok" data-testid="status-ok">
+            <mat-icon>check_circle</mat-icon> connected
+          </span>
+        } @else {
+          <span class="dd-pill dd-pill-err" data-testid="status-error">
+            <mat-icon>error</mat-icon> error
+          </span>
+        }
+      </div>
+
+      @if (state() === 'error') {
+        <p class="dd-error-text" data-testid="error-text">{{ errorMsg() }}</p>
+      }
+
+      <!-- API row -->
+      <div class="dd-row" data-testid="row-api">
+        <div class="dd-row-left">
+          <mat-icon class="dd-row-icon">dns</mat-icon>
+          <div>
+            <div class="dd-row-title">FastAPI backend</div>
+            <div class="dd-row-desc">GET /api/hello</div>
+          </div>
+        </div>
+        <code class="dd-mono" data-testid="hello-message">
+          {{ hello()?.message || '—' }}
+        </code>
+      </div>
+
+      <!-- Supabase row -->
+      <div class="dd-row" data-testid="row-db">
+        <div class="dd-row-left">
+          <mat-icon class="dd-row-icon">database</mat-icon>
+          <div>
+            <div class="dd-row-title">Supabase (Postgres + pgvector)</div>
+            <div class="dd-row-desc" data-testid="db-detail">
+              {{ health()?.database?.detail || 'waiting…' }}
+            </div>
+          </div>
+        </div>
+        @if (health()) {
+          @if (health()!.database.ok) {
+            <span class="dd-tag dd-tag-ok" data-testid="db-ok">reachable</span>
+          } @else {
+            <span class="dd-tag dd-tag-warn" data-testid="db-warn">not set</span>
+          }
+        }
+      </div>
+
+      <div class="dd-card-actions">
+        <button mat-flat-button color="primary" (click)="check()" data-testid="recheck-btn">
+          <mat-icon>refresh</mat-icon> Re-check
+        </button>
+      </div>
+    </mat-card>
+
+    <!-- What's next -->
+    <section class="dd-next" data-testid="next-section">
+      <div class="dd-next-item">
+        <mat-icon>merge_type</mat-icon>
+        <div>
+          <div class="dd-next-title">Phase 1 · Ingestion</div>
+          <div class="dd-next-desc">Repo → chunks → embeddings → pgvector, with progress polling.</div>
+        </div>
+      </div>
+      <div class="dd-next-item">
+        <mat-icon>chat</mat-icon>
+        <div>
+          <div class="dd-next-title">Phase 2 · RAG chat</div>
+          <div class="dd-next-desc">Top-k retrieval, grounded answers, clickable citations.</div>
+        </div>
+      </div>
+      <div class="dd-next-item">
+        <mat-icon>rule</mat-icon>
+        <div>
+          <div class="dd-next-title">Phase 3 · Drift detection</div>
+          <div class="dd-next-desc">Re-scan compares docs vs code and flags what's stale.</div>
+        </div>
+      </div>
+    </section>
+  </main>
+
+  <footer class="dd-footer">
+    DocDrift · Angular {{ '17' }} + FastAPI + Supabase + OpenAI
+  </footer>
+</div>

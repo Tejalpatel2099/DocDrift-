@@ -1,0 +1,63 @@
+@use '@angular/material' as mat;
+
+@include mat.core();
+
+// DocDrift dark theme — deep slate canvas, electric-mint primary, amber accent
+// (amber is reserved for the "drift" warnings later). Built on Material's M2
+// palettes so we stay on the well-supported theming API.
+$dd-primary: mat.define-palette(mat.$green-palette, 400, 200, 700);
+$dd-accent: mat.define-palette(mat.$amber-palette, A400, A200, A700);
+$dd-warn: mat.define-palette(mat.$red-palette);
+
+$dd-theme: mat.define-dark-theme((
+  color: (primary: $dd-primary, accent: $dd-accent, warn: $dd-warn),
+  typography: mat.define-typography-config($font-family: '"IBM Plex Sans", sans-serif'),
+  density: 0,
+));
+
+@include mat.all-component-themes($dd-theme);
+
+:root {
+  --dd-bg: #0b0f14;
+  --dd-bg-2: #0e141c;
+  --dd-panel: #121a24;
+  --dd-panel-2: #16202c;
+  --dd-border: #1f2b3a;
+  --dd-text: #e6edf3;
+  --dd-muted: #8b98a9;
+  --dd-mint: #3de0a0;
+  --dd-mint-dim: rgba(61, 224, 160, 0.14);
+  --dd-amber: #ffb454;
+  --dd-red: #ff6b6b;
+  --dd-display: 'Sora', sans-serif;
+  --dd-body: 'IBM Plex Sans', sans-serif;
+  --dd-mono: 'IBM Plex Mono', monospace;
+}
+
+html, body {
+  height: 100%;
+  margin: 0;
+}
+
+body.dd-dark {
+  background:
+    radial-gradient(1100px 620px at 82% -8%, rgba(61, 224, 160, 0.10), transparent 60%),
+    radial-gradient(900px 520px at -5% 8%, rgba(88, 166, 255, 0.08), transparent 55%),
+    var(--dd-bg);
+  color: var(--dd-text);
+  font-family: var(--dd-body);
+  -webkit-font-smoothing: antialiased;
+}
+
+::selection {
+  background: var(--dd-mint);
+  color: #04120c;
+}
+
+/* thin custom scrollbar for the dev-tool feel */
+* {
+  scrollbar-width: thin;
+  scrollbar-color: var(--dd-border) transparent;
+}
+*::-webkit-scrollbar { width: 10px; height: 10px; }
+*::-webkit-scrollbar-thumb { background: var(--dd-border); border-radius: 10px; }
