@@ -29,10 +29,13 @@ GITHUB_API = "https://api.github.com"
 ALLOWED_EXTS = {
     ".py", ".js", ".jsx", ".ts", ".tsx", ".go", ".rs", ".java", ".rb", ".php",
     ".c", ".h", ".cpp", ".hpp", ".cs", ".kt", ".swift", ".scala", ".sh",
+    ".razor", ".cshtml", ".vue", ".svelte", ".html", ".css", ".scss", ".less",
+    ".csproj", ".xml", ".gradle", ".dart", ".ex", ".exs", ".clj",
     ".md", ".mdx", ".markdown", ".rst", ".txt", ".yml", ".yaml", ".toml", ".sql",
 }
 SKIP_DIRS = ("node_modules/", "dist/", "build/", ".git/", "vendor/", "__pycache__/",
              ".next/", "venv/", ".venv/", "coverage/")
+DOC_EXTS = {".md", ".mdx", ".markdown", ".rst", ".txt"}
 MAX_FILES = 400
 MAX_BLOB_BYTES = 120_000
 
@@ -91,6 +94,23 @@ def _keep(path: str, size: int) -> bool:
     return ext in ALLOWED_EXTS
 
 
+def _priority_key(path: str) -> tuple:
+    """Order files so README/docs and real source are fetched BEFORE tests.
+    Keeps partial indexes (e.g. rate-limited) useful and ensures docs land in
+    the index for both chat and drift."""
+    p = path.lower()
+    ext = "." + p.rsplit(".", 1)[-1] if "." in p else ""
+    is_doc = ext in DOC_EXTS
+    is_test = any(t in p for t in ("test", "spec", "__tests__", ".tests", "/tests/"))
+    if is_doc:
+        rank = 0
+    elif is_test:
+        rank = 2
+    else:
+        rank = 1
+    return (rank, path)
+
+
 # --- repo CRUD -------------------------------------------------------------
 def upsert_repo(github_url: str) -> dict:
     owner, repo = parse_github_url(github_url)
@@ -138,7 +158,9 @@ def run_ingestion(repo_id: str, github_url: str) -> None:
 
             tree = _get(client, f"/repos/{owner}/{repo}/git/trees/{branch}?recursive=1")
             files = [t for t in tree.get("tree", [])
-                     if t.get("type") == "blob" and _keep(t["path"], t.get("size", 0))][:MAX_FILES]
+                     if t.get("type") == "blob" and _keep(t["path"], t.get("size", 0))]
+            files.sort(key=lambda t: _priority_key(t["path"]))
+            files = files[:MAX_FILES]
             JOBS[repo_id]["total_files"] = len(files)
 
             pending_rows: list[dict] = []
