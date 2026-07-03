@@ -1,124 +1,108 @@
 <div class="dd-shell" data-testid="app-shell">
-  <!-- Top bar -->
   <header class="dd-topbar" data-testid="topbar">
     <div class="dd-brand">
-      <span class="dd-logo" aria-hidden="true">
-        <mat-icon>hub</mat-icon>
-      </span>
+      <span class="dd-logo" aria-hidden="true"><mat-icon>hub</mat-icon></span>
       <div class="dd-brand-text">
         <span class="dd-brand-name">DocDrift</span>
         <span class="dd-brand-tag">chat your codebase · catch stale docs</span>
       </div>
     </div>
-    <mat-chip-set aria-label="phase">
-      <mat-chip class="dd-phase-chip" data-testid="phase-chip">Phase 0 · Scaffolding</mat-chip>
-    </mat-chip-set>
+    <div class="dd-badges">
+      @if (health()) {
+        <span class="dd-dot" [class.on]="health()!.supabaseConfigured" data-testid="badge-db">db</span>
+        <span class="dd-dot" [class.on]="health()!.openaiConfigured" data-testid="badge-openai">openai</span>
+        <span class="dd-dot" [class.on]="health()!.githubTokenSet" data-testid="badge-gh">github</span>
+      }
+    </div>
   </header>
 
-  <main class="dd-main">
-    <!-- Hero -->
-    <section class="dd-hero" data-testid="hero">
-      <h1 class="dd-h1">
-        Documentation that <span class="dd-accent">tells on itself.</span>
-      </h1>
-      <p class="dd-sub">
-        Paste a public GitHub repo, ask questions with cited answers, and get
-        flagged the moment your docs drift out of sync with the code.
-      </p>
-    </section>
-
-    <!-- Connection status card -->
-    <mat-card class="dd-card" data-testid="status-card">
-      <div class="dd-card-head">
-        <h2 class="dd-card-title">System check</h2>
-
-        @if (state() === 'loading') {
-          <span class="dd-pill dd-pill-neutral" data-testid="status-loading">
-            <mat-spinner diameter="16"></mat-spinner> checking…
-          </span>
-        } @else if (state() === 'ok') {
-          <span class="dd-pill dd-pill-ok" data-testid="status-ok">
-            <mat-icon>check_circle</mat-icon> connected
-          </span>
-        } @else {
-          <span class="dd-pill dd-pill-err" data-testid="status-error">
-            <mat-icon>error</mat-icon> error
-          </span>
+  <div class="dd-layout">
+    <!-- Sidebar: indexed repos -->
+    <aside class="dd-sidebar" data-testid="repo-sidebar">
+      <div class="dd-side-head">Indexed repos</div>
+      @if (repos().length === 0) {
+        <div class="dd-empty" data-testid="repos-empty">
+          <mat-icon>folder_open</mat-icon>
+          <span>No repos yet. Index one to begin.</span>
+        </div>
+      } @else {
+        @for (r of repos(); track r.id) {
+          <div class="dd-repo-item" data-testid="repo-item">
+            <div class="dd-repo-name">{{ r.name }}</div>
+            <span class="dd-repo-status" [attr.data-status]="r.status">{{ r.status }}</span>
+          </div>
         }
-      </div>
-
-      @if (state() === 'error') {
-        <p class="dd-error-text" data-testid="error-text">{{ errorMsg() }}</p>
       }
+    </aside>
 
-      <!-- API row -->
-      <div class="dd-row" data-testid="row-api">
-        <div class="dd-row-left">
-          <mat-icon class="dd-row-icon">dns</mat-icon>
-          <div>
-            <div class="dd-row-title">FastAPI backend</div>
-            <div class="dd-row-desc">GET /api/hello</div>
-          </div>
-        </div>
-        <code class="dd-mono" data-testid="hello-message">
-          {{ hello()?.message || '—' }}
-        </code>
-      </div>
+    <!-- Main: ingest -->
+    <main class="dd-main">
+      <section class="dd-hero">
+        <h1 class="dd-h1">Index a <span class="dd-accent">codebase.</span></h1>
+        <p class="dd-sub">
+          Paste a public GitHub URL. DocDrift fetches the tree, chunks code by
+          symbol and docs by heading, embeds every chunk, and stores vectors in
+          pgvector — then you can chat with it (Phase 2).
+        </p>
+      </section>
 
-      <!-- Supabase row -->
-      <div class="dd-row" data-testid="row-db">
-        <div class="dd-row-left">
-          <mat-icon class="dd-row-icon">database</mat-icon>
-          <div>
-            <div class="dd-row-title">Supabase (Postgres + pgvector)</div>
-            <div class="dd-row-desc" data-testid="db-detail">
-              {{ health()?.database?.detail || 'waiting…' }}
-            </div>
-          </div>
+      <mat-card class="dd-card" data-testid="ingest-card">
+        <div class="dd-ingest-row">
+          <mat-form-field appearance="outline" class="dd-input">
+            <mat-label>GitHub repository URL</mat-label>
+            <input matInput placeholder="https://github.com/owner/repo"
+                   [ngModel]="repoUrl()" (ngModelChange)="repoUrl.set($event)"
+                   data-testid="repo-url-input" />
+          </mat-form-field>
+          <button mat-flat-button color="primary" (click)="index()"
+                  [disabled]="submitting() || !repoUrl().trim()" data-testid="index-btn">
+            <mat-icon>bolt</mat-icon> Index repo
+          </button>
         </div>
-        @if (health()) {
-          @if (health()!.database.ok) {
-            <span class="dd-tag dd-tag-ok" data-testid="db-ok">reachable</span>
-          } @else {
-            <span class="dd-tag dd-tag-warn" data-testid="db-warn">not set</span>
-          }
+
+        @if (!backendReady() && health()) {
+          <p class="dd-hint" data-testid="backend-hint">
+            <mat-icon>info</mat-icon>
+            Add Supabase credentials to <code>backend/.env</code> to enable indexing.
+          </p>
         }
-      </div>
 
-      <div class="dd-card-actions">
-        <button mat-flat-button color="primary" (click)="check()" data-testid="recheck-btn">
-          <mat-icon>refresh</mat-icon> Re-check
-        </button>
-      </div>
-    </mat-card>
+        @if (errorMsg()) {
+          <p class="dd-error-text" data-testid="error-text">{{ errorMsg() }}</p>
+        }
 
-    <!-- What's next -->
-    <section class="dd-next" data-testid="next-section">
-      <div class="dd-next-item">
-        <mat-icon>merge_type</mat-icon>
-        <div>
-          <div class="dd-next-title">Phase 1 · Ingestion</div>
-          <div class="dd-next-desc">Repo → chunks → embeddings → pgvector, with progress polling.</div>
-        </div>
-      </div>
-      <div class="dd-next-item">
+        @if (job()) {
+          <div class="dd-progress" data-testid="progress">
+            <div class="dd-progress-head">
+              @if (job()!.status === 'ready') {
+                <span class="dd-pill dd-pill-ok"><mat-icon>check_circle</mat-icon> done</span>
+              } @else if (job()!.status === 'error') {
+                <span class="dd-pill dd-pill-err"><mat-icon>error</mat-icon> error</span>
+              } @else {
+                <span class="dd-pill dd-pill-neutral">
+                  <mat-spinner diameter="15"></mat-spinner> {{ job()!.phase || 'working' }}…
+                </span>
+              }
+              <span class="dd-progress-meta" data-testid="progress-meta">
+                @if (job()!.status === 'ready') {
+                  {{ job()!.chunks }} chunks embedded
+                } @else {
+                  {{ job()!.processed_files || 0 }}/{{ job()!.total_files || '?' }} files
+                }
+              </span>
+            </div>
+            <mat-progress-bar mode="determinate" [value]="percent()"></mat-progress-bar>
+            @if (job()!.status === 'error' && job()!.error) {
+              <p class="dd-error-text">{{ job()!.error }}</p>
+            }
+          </div>
+        }
+      </mat-card>
+
+      <div class="dd-next-hint" data-testid="next-hint">
         <mat-icon>chat</mat-icon>
-        <div>
-          <div class="dd-next-title">Phase 2 · RAG chat</div>
-          <div class="dd-next-desc">Top-k retrieval, grounded answers, clickable citations.</div>
-        </div>
+        <span>Next up (Phase 2): ask questions and get answers with clickable file:line citations.</span>
       </div>
-      <div class="dd-next-item">
-        <mat-icon>rule</mat-icon>
-        <div>
-          <div class="dd-next-title">Phase 3 · Drift detection</div>
-          <div class="dd-next-desc">Re-scan compares docs vs code and flags what's stale.</div>
-        </div>
-      </div>
-    </section>
-  </main>
-
-  <footer class="dd-footer">
-    DocDrift · Angular {{ '17' }} + FastAPI + Supabase + OpenAI
-  </footer>
+    </main>
+  </div>
 </div>

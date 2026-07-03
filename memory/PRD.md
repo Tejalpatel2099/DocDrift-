@@ -43,6 +43,16 @@ no webhooks (manual Re-scan) · local dev first, deploy last.
   renders, API "connected", Supabase reports "not set" (creds pending). Dark
   Material theme (Sora / IBM Plex Sans / IBM Plex Mono, electric-mint accent).
 
+- 2026-07-03 — **Phase 1 built (pending live test)**. Backend: `db.py` (supabase
+  singleton), `chunking.py` (code by symbol regex / markdown by heading / window
+  fallback, 1-based line ranges), `ingestion.py` (GitHub Trees+Blobs fetch, file
+  filter, batched `text-embedding-3-small`, batched pgvector insert, in-memory
+  JOBS progress, idempotent re-index). Endpoints: POST/GET /api/repos, GET
+  /api/repos/{id}, /status. Frontend: repo sidebar + ingest form + 2s polling
+  progress bar + health badges. OPENAI_API_KEY set. Chunking unit-tested; server
+  boots; POST guarded (503) w/o Supabase. BLOCKED on Supabase creds + GITHUB_TOKEN
+  + a non-empty test repo for the live end-to-end demo.
+
 ## Backlog / next
 - **Phase 1 (P0)**: ingestion — Octokit/PyGithub fetch tree+contents → chunk
   (code by function/class, markdown by heading) → embed → store in pgvector.

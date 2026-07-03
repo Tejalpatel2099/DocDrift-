@@ -1,19 +1,17 @@
 """
 DocDrift API — FastAPI backend.
 
-Phase 0: proves the frontend -> backend -> Supabase wiring.
-  GET /api/hello   -> smoke test the Angular app calls on load
-  GET /api/health  -> process + live Supabase connectivity
-
-Everything is namespaced under /api so the platform proxy routes it to this
-server on port 8001. The Angular app (port 3000) calls these endpoints.
+Phase 0: /api/hello, /api/health
+Phase 1: repo ingestion (GitHub -> chunks -> embeddings -> pgvector) with
+         immediate job id + a status endpoint the Angular UI polls every 2s.
 """
 import os
 import logging
 from pathlib import Path
 from datetime import datetime, timezone
 
-from fastapi import FastAPI, APIRouter
+from fastapi import FastAPI, APIRouter, BackgroundTasks, HTTPException
+from pydantic import BaseModel
 from dotenv import load_dotenv
 from starlette.middleware.cors import CORSMiddleware
 
@@ -23,52 +21,17 @@ load_dotenv(ROOT_DIR / ".env")
 logging.basicConfig(level=logging.INFO, format="%(asctime)s - %(name)s - %(levelname)s - %(message)s")
 logger = logging.getLogger("docdrift")
 
-# --- Supabase client (lazy + guarded) ---------------------------------------
-# The service_role key is server-side only and bypasses Row Level Security, so
-# it must never reach the browser. In Phase 0 the credentials may be blank; the
-# server still boots so /api/hello works, and /api/health reports DB status.
-from functools import lru_cache  # noqa: E402
+from db import supabase_configured, check_db_connection  # noqa: E402
+from ingestion import (  # noqa: E402
+    upsert_repo, list_repos, get_repo, get_job_status, run_ingestion, parse_github_url,
+)
 
-from supabase import create_client, Client  # noqa: E402
-
-
-def supabase_configured() -> bool:
-    return bool(os.environ.get("SUPABASE_URL") and os.environ.get("SUPABASE_SERVICE_ROLE_KEY"))
-
-
-@lru_cache(maxsize=1)
-def get_supabase() -> Client:
-    """Return a process-wide Supabase client.
-
-    lru_cache gives us a lazy singleton without a mutable module global:
-    the client is created on first successful call and reused after. If the
-    credentials are missing we raise (the exception is not cached), so a later
-    call after the env is fixed will build the client correctly.
-    """
-    if not supabase_configured():
-        raise RuntimeError("Supabase not configured. Set SUPABASE_URL and SUPABASE_SERVICE_ROLE_KEY in backend/.env")
-    return create_client(
-        os.environ["SUPABASE_URL"],
-        os.environ["SUPABASE_SERVICE_ROLE_KEY"],
-    )
-
-
-def check_db_connection() -> dict:
-    if not supabase_configured():
-        return {"ok": False, "detail": "Supabase credentials not set in backend/.env"}
-    try:
-        get_supabase().table("repos").select("id").limit(1).execute()
-        return {"ok": True, "detail": "Connected to Supabase and repos table is reachable."}
-    except Exception as e:  # noqa: BLE001
-        msg = str(e)
-        if "does not exist" in msg or "42P01" in msg:
-            return {"ok": True, "detail": "Connected to Postgres, but run supabase/schema.sql to create tables."}
-        return {"ok": False, "detail": msg}
-
-
-# --- App + routes ------------------------------------------------------------
-app = FastAPI(title="DocDrift API", version="0.1.0")
+app = FastAPI(title="DocDrift API", version="0.2.0")
 api_router = APIRouter(prefix="/api")
+
+
+class RepoCreate(BaseModel):
+    github_url: str
 
 
 @api_router.get("/hello")
@@ -85,8 +48,48 @@ def health():
     return {
         "status": "ok",
         "supabaseConfigured": supabase_configured(),
+        "openaiConfigured": bool(os.environ.get("OPENAI_API_KEY")),
+        "githubTokenSet": bool(os.environ.get("GITHUB_TOKEN")),
         "database": check_db_connection(),
     }
+
+
+@api_router.post("/repos")
+def create_repo(body: RepoCreate, background: BackgroundTasks):
+    """Register a repo and kick off indexing in the background.
+
+    Returns immediately with the repo id so the UI can start polling
+    /api/repos/{id}/status. No queue in v1 (see ingestion.py trade-off note).
+    """
+    if not supabase_configured():
+        raise HTTPException(503, "Supabase not configured on the server.")
+    try:
+        parse_github_url(body.github_url)
+    except ValueError as e:
+        raise HTTPException(400, str(e))
+    repo = upsert_repo(body.github_url)
+    background.add_task(run_ingestion, repo["id"], body.github_url)
+    return {"repo_id": repo["id"], "status": "indexing", "name": repo["name"]}
+
+
+@api_router.get("/repos")
+def get_repos():
+    if not supabase_configured():
+        raise HTTPException(503, "Supabase not configured on the server.")
+    return list_repos()
+
+
+@api_router.get("/repos/{repo_id}")
+def get_one_repo(repo_id: str):
+    repo = get_repo(repo_id)
+    if not repo:
+        raise HTTPException(404, "Repo not found")
+    return repo
+
+
+@api_router.get("/repos/{repo_id}/status")
+def repo_status(repo_id: str):
+    return get_job_status(repo_id)
 
 
 app.include_router(api_router)
