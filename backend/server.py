@@ -27,25 +27,30 @@ logger = logging.getLogger("docdrift")
 # The service_role key is server-side only and bypasses Row Level Security, so
 # it must never reach the browser. In Phase 0 the credentials may be blank; the
 # server still boots so /api/hello works, and /api/health reports DB status.
-from supabase import create_client, Client  # noqa: E402
+from functools import lru_cache  # noqa: E402
 
-_supabase: Client | None = None
+from supabase import create_client, Client  # noqa: E402
 
 
 def supabase_configured() -> bool:
     return bool(os.environ.get("SUPABASE_URL") and os.environ.get("SUPABASE_SERVICE_ROLE_KEY"))
 
 
+@lru_cache(maxsize=1)
 def get_supabase() -> Client:
-    global _supabase
+    """Return a process-wide Supabase client.
+
+    lru_cache gives us a lazy singleton without a mutable module global:
+    the client is created on first successful call and reused after. If the
+    credentials are missing we raise (the exception is not cached), so a later
+    call after the env is fixed will build the client correctly.
+    """
     if not supabase_configured():
         raise RuntimeError("Supabase not configured. Set SUPABASE_URL and SUPABASE_SERVICE_ROLE_KEY in backend/.env")
-    if _supabase is None:
-        _supabase = create_client(
-            os.environ["SUPABASE_URL"],
-            os.environ["SUPABASE_SERVICE_ROLE_KEY"],
-        )
-    return _supabase
+    return create_client(
+        os.environ["SUPABASE_URL"],
+        os.environ["SUPABASE_SERVICE_ROLE_KEY"],
+    )
 
 
 def check_db_connection() -> dict:
